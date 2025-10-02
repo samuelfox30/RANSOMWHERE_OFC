@@ -40,7 +40,7 @@ namespace Monitoramento
                 try
                 {
                     proc.CloseMainWindow();
-                    if (proc.WaitForExit(2000))
+                    if (proc.WaitForExit(10))
                     {
                         Console.WriteLine($"[Protection] Processo {nome} (PID: {pid}) fechado graciosamente.");
                         return;
@@ -50,7 +50,7 @@ namespace Monitoramento
 
                 // Força o kill
                 proc.Kill(entireProcessTree: true);
-                proc.WaitForExit(3000);
+                proc.WaitForExit(10);
 
                 Console.WriteLine($"[Protection] Processo {nome} (PID: {pid}) encerrado à força.");
             }
