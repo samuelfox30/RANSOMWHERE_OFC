@@ -6,9 +6,8 @@ import threading
 import queue
 import os
 
-EXE_PATH = r"C:\ransomwhere - oldest backup\net9.0\Monitoramento.exe"
+EXE_PATH = r"D:\rabeloransomware\RANSOMWHERE_OFC\net9.0\Monitoramento.exe"
 
-# ======= Função para cores de log =======
 def cor_log(linha):
     if "[ERRO" in linha:
         return "red"
@@ -17,14 +16,14 @@ def cor_log(linha):
     elif "[COMUM]" in linha:
         return "green"
     else:
-        return "black"
+        return "White"
 
 class FrufruApp:
     def __init__(self, root):
         self.root = root
         root.title("🛡 RANSOMWHERE Monitor")
-        root.geometry("900x500")
-        root.configure(bg="#1e1e2f")  # fundo escuro
+        root.geometry("1920x1080")
+        root.configure(bg="#241e2f")  # fundo escuro
 
         # Label título
         titulo = tk.Label(root, text="RANSOMWHERE Monitor", font=("Consolas", 20, "bold"),
