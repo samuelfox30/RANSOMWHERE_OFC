@@ -27,12 +27,12 @@ class FrufruApp:
 
         # Label título
         titulo = tk.Label(root, text="RANSOMWHERE Monitor", font=("Consolas", 20, "bold"),
-                          bg="#1e1e2f", fg="#ffcc00")
+        bg="#1e1e2f", fg="#ffcc00")
         titulo.pack(pady=10)
 
         # Text area com scroll
         self.logbox = ScrolledText(root, state="disabled", height=20, wrap="none",
-                                   font=("Consolas", 11), bg="#2b2b3c", fg="white", insertbackground="white")
+        font=("Consolas", 11), bg="#2b2b3c", fg="white", insertbackground="white")
         self.logbox.pack(fill="both", expand=True, padx=12, pady=6)
 
         # Frame para botões

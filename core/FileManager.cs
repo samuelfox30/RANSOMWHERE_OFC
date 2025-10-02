@@ -18,7 +18,6 @@ namespace Monitoramento
             $@"C:\Users\{Environment.UserName}\Desktop",
             $@"C:\Users\{Environment.UserName}\Pictures",
             $@"C:\Users\{Environment.UserName}\Downloads",
-            $@"C:\Users\{Environment.UserName}\OneDrive",
         };
 
         // Lista para segurar watchers (evita que sejam coletados pelo GC)

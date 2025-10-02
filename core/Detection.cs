@@ -2,172 +2,121 @@
 using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
-using System.Timers;
+using System.Diagnostics;
 
 namespace Monitoramento
 {
     public class Detection
     {
         private static readonly ConcurrentDictionary<string, int> contadorEventos = new();
-        private static readonly System.Timers.Timer timerLimpeza = new(5000);
-
-        public Detection()
-        {
-            timerLimpeza.Elapsed += (s, e) => contadorEventos.Clear();
-            timerLimpeza.AutoReset = true;
-            timerLimpeza.Start();
-        }
-        
-        /* private readonly Protection protect = new();
-        protect.Protector(...); */
+        private readonly Protection protector = new();
 
         public async Task Detector(string fileWay)
         {
-            // VERIFICANDO ESTABILIDADE ---------------------------------------------------|
-            Console.WriteLine($"Verificando arquivo {fileWay}...");
-            bool estaEstavel = await Stability(fileWay);
-
-            if (estaEstavel)
+            if (string.IsNullOrWhiteSpace(fileWay))
             {
-                Console.WriteLine($"Arquivo {fileWay} está estável. Iniciando análise...");
-
-                // VERIFICANDO EXTENSÃO SUSPEITA ---------------------------------------------------|
-                if (VerificarExtensaoSuspeita(fileWay))
-                {
-                    Console.WriteLine("🚨 Extensão suspeita detectada. Pode indicar ransomware.");
-                }
-                else
-                {
-                    Console.WriteLine("✅ Extensão aparentemente segura.");
-                }
-
-                // VERIFICANDO NÍVEL DE ENTROPIA ---------------------------------------------------|
-                double entropia = CalcularEntropia(fileWay);
-                Console.WriteLine($"Entropia do arquivo: {entropia:F4}");
-
-                if (entropia > 5.35)
-                {
-                    Console.WriteLine("⚠️ Arquivo com alta entropia. Possível criptografia detectada.");
-                }
-                else
-                {
-                    Console.WriteLine("✅ Entropia dentro do padrão esperado.");
-                }
-
-                // VERIFICANDO MODIFICAÇÕES EM MASSA ---------------------------------------------------|
-                string pasta = Path.GetDirectoryName(fileWay);
-                if (DetectarModificacaoEmMassa(pasta))
-                {
-                    Console.WriteLine("🚨 Modificações em massa detectadas nesse diretório.");
-                }
-
-                // VERIFICANDO CRIAÇÃO DE .EXE OU .BMP EM LOCAL SENSÍVEL -----------------------------|
-                if (VerificarCriacaoSuspeita(fileWay))
-                {
-                    Console.WriteLine("🚨 Criação de .exe ou .bmp em local sensível. Pode indicar ransomware.");
-                }
+                Console.WriteLine("[WARN] Caminho inválido.");
+                return;
             }
-            else
+
+            Console.WriteLine($"[Detection] Verificando arquivo {fileWay}...");
+
+            // VERIFICAR EXTENSÃO SUSPEITA
+            if (VerificarExtensaoSuspeita(fileWay))
             {
-                Console.WriteLine($"Arquivo {fileWay} não está acessível ou foi removido.");
+                Console.WriteLine("🚨 Extensão suspeita detectada.");
+                await AcionarProtecaoAsync(fileWay);
+            }
+
+            // VERIFICAR ENTROPIA
+            double entropia = CalcularEntropia(fileWay);
+            Console.WriteLine($"[Detection] Entropia do arquivo: {entropia:F4}");
+            if (entropia > 5.35)
+            {
+                Console.WriteLine("⚠️ Alta entropia detectada.");
+                await AcionarProtecaoAsync(fileWay);
+            }
+
+            // VERIFICAR MODIFICAÇÃO EM MASSA
+            string? pasta = Path.GetDirectoryName(fileWay);
+            if (!string.IsNullOrEmpty(pasta) && DetectarModificacaoEmMassa(pasta))
+            {
+                Console.WriteLine("🚨 Modificações em massa detectadas.");
+                await AcionarProtecaoAsync(fileWay);
             }
         }
 
-        public async Task<bool> Stability(string caminho, int delay = 100)
+        private double CalcularEntropia(string caminho)
         {
-            if (!File.Exists(caminho))
+            try
             {
-                return false;
-            }
+                if (!File.Exists(caminho)) return 0;
+                byte[] dados = File.ReadAllBytes(caminho);
+                if (dados.Length == 0) return 0;
 
-            while (true)
-            {
-                await Task.Delay(delay);
+                int[] freq = new int[256];
+                foreach (byte b in dados) freq[b]++;
 
-                try
+                double entropia = 0;
+                foreach (int f in freq)
                 {
-                    using var fs = new FileStream(caminho, FileMode.Open, FileAccess.Read, FileShare.None);
-                    long tamanho1 = fs.Length;
-                    await Task.Delay(50);
-                    long tamanho2 = fs.Length;
-
-                    if (tamanho1 == tamanho2)
-                    {
-                        return true;
-                    }
+                    if (f == 0) continue;
+                    double p = (double)f / dados.Length;
+                    entropia -= p * Math.Log2(p);
                 }
-                catch (IOException)
-                {
-                    // Arquivo ainda em uso (instável)
-                }
+                return entropia;
             }
-        }
-
-        public double CalcularEntropia(string caminho)
-        {
-            if (!File.Exists(caminho)) return 0;
-
-            byte[] dados = File.ReadAllBytes(caminho);
-            if (dados.Length == 0) return 0;
-
-            int[] frequencias = new int[256];
-            foreach (byte b in dados)
+            catch
             {
-                frequencias[b]++;
+                return 0;
             }
-
-            double entropia = 0;
-            foreach (int freq in frequencias)
-            {
-                if (freq == 0) continue;
-                double p = (double)freq / dados.Length;
-                entropia -= p * Math.Log2(p);
-            }
-
-            return entropia;
         }
 
-        public bool VerificarExtensaoSuspeita(string caminho)
+        private bool VerificarExtensaoSuspeita(string caminho)
         {
-            string[] extensoesSuspeitas = {
-                ".wncry", ".wcry", ".wncryt", ".wncrypt", ".locky", ".crypt", ".enc", ".r5a", ".cerber",
-                ".crypted", ".cryp1", ".crypz", ".wallet", ".help", ".thor", ".zzzzz", ".aes256", ".vault"
-            };
-            string extensao = Path.GetExtension(caminho)?.ToLower();
-
-            return Array.Exists(extensoesSuspeitas, ext => ext == extensao);
+            string[] extensoes = { ".wncry", ".wcry", ".locky", ".crypt", ".enc" };
+            string ext = Path.GetExtension(caminho)?.ToLower() ?? "";
+            return Array.Exists(extensoes, e => e == ext);
         }
 
-        public bool DetectarModificacaoEmMassa(string diretorio)
+        private bool DetectarModificacaoEmMassa(string diretorio)
         {
-            if (!contadorEventos.ContainsKey(diretorio))
-                contadorEventos[diretorio] = 0;
-
-            contadorEventos[diretorio]++;
+            contadorEventos.AddOrUpdate(diretorio, 1, (_, v) => v + 1);
             return contadorEventos[diretorio] > 10;
         }
 
-        public bool VerificarCriacaoSuspeita(string caminho)
+        private Task AcionarProtecaoAsync(string fileWay)
         {
-            string extensao = Path.GetExtension(caminho)?.ToLower();
-            if (extensao != ".exe" && extensao != ".bmp") return false;
-
-            string[] pastasCriticas = {
-                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
-            };
-
-            string pastaArquivo = Path.GetDirectoryName(caminho);
-            foreach (var pasta in pastasCriticas)
+            return Task.Run(() =>
             {
-                if (pastaArquivo.StartsWith(pasta, StringComparison.OrdinalIgnoreCase))
+                try
                 {
-                    return true;
-                }
-            }
+                    string nomeArquivo = Path.GetFileNameWithoutExtension(fileWay);
 
-            return false;
+                    foreach (var proc in Process.GetProcesses())
+                    {
+                        try
+                        {
+                            string? caminhoProc = null;
+                            try { caminhoProc = proc.MainModule?.FileName; } catch { }
+
+                            if (!string.IsNullOrEmpty(caminhoProc) &&
+                                caminhoProc.EndsWith(nomeArquivo + ".exe", StringComparison.OrdinalIgnoreCase))
+                            {
+                                protector.Protecao(proc.Id, caminhoProc, proc.ProcessName);
+                                return;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    Console.WriteLine("[Detection] Nenhum processo suspeito encontrado para encerrar.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Detection] Erro ao acionar proteção: {ex.Message}");
+                }
+            });
         }
     }
 }
